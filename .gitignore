@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.mypy_cache/
+
+# Ambientes virtuais
+.venv/
+venv/
+env/
+
+# Build de pacote (mazegen)
+build/
+dist/
+*.egg-info/
+
+# Editor / SO
+.vscode/
+.idea/
+.DS_Store
+EOF
