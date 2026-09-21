@@ -37,9 +37,19 @@ class Generator:
                     self.width = int(line.split("=")[1])
                 if line.startswith("HEIGHT="):
                     self.height = int(line.split("=")[1])
+                if line.startswith("ENTRY="):
+                    coords = line.split("=")[1].split(",")
+                    entry_x = int(coords[0])
+                    entry_y = int(coords[1])
+                    self.entry = (entry_x, entry_y)
+                if line.startswith("EXIT="):
+                    coords = line.split("=")[1].split(",")
+                    exit_x = int(coords[0])
+                    exit_y = int(coords[1])
+                    self.exit = (exit_x, exit_y)
                 if line.startswith("SEED="):
                     self.seed = int(line.split("=")[1])
-        if self.width <= 0 or self.height <= 0:
+        if self.width <= 0 or self.height <= 0 or self.entry is None or self.exit is None:
             raise ValueError("Tamanho inválido")
         if self.seed is None:
             self.seed = random.randint(0 ,2**32 - 1)
@@ -65,6 +75,8 @@ class Generator:
                 self.listcel[-1].open_path(next)
                 next.visited = True
                 self.listcel.append(next)
+        self.open_border(self.grid[self.entry[1]][self.entry[0]])
+        self.open_border(self.grid[self.exit[1]][self.exit[0]])
 
 
     def get_neighbours(self, current : Cell) -> list[Cell]:
@@ -83,20 +95,55 @@ class Generator:
     def show_maze(self) -> None:
         self.grid
 
-        for y in self.grid:
+        for y in range(self.height):
             top_line = ""
             mid_line = ""
-            for x range(self.grid[y][x-1]):
+            for x in range(self.width):
                 cell = self.grid[y][x]
-                if cell.walls["N"] == True:
-                    if x == 1 or x == x-1
-                        top_line += "+"
+                top_line += "+"
+                if cell.walls["N"] == True: 
                     top_line += "---"
-                
+                else:
+                    top_line += "   "
                 if cell.walls["W"] == True:
                     mid_line += "|"
-                print(top_line)
-                print(mid_line )  
+                else:
+                    mid_line += " "
+                if (x,y) == self.entry:
+                    mid_line += " E "
+                elif (x,y) == self.exit:
+                    mid_line += " X "
+                else: 
+                    mid_line += "   "
+            top_line += "+"
+            if self.grid[y][self.width - 1].walls["E"] == True:
+                mid_line += "|"
+            else:
+                mid_line += " "
+            print(top_line)
+            print(mid_line)
+
+        under_line = ""
+        for x in range(self.width):
+            cell = self.grid[self.height-1][x]
+            under_line += "+"
+            if cell.walls["S"]:
+                under_line += "---"
+            else:
+                under_line += "   "
+        under_line += "+"
+        print(under_line)
+
+
+    def open_border(self, cell: "Cell") -> None:
+        if cell.x == 0:
+            cell.walls["W"] = False
+        elif cell.x == self.width - 1:
+            cell.walls["E"] = False
+        elif cell.y == 0:
+            cell.walls["N"] = False
+        elif cell.y == self.height - 1:
+            cell.walls["S"] = False
 
 
 if __name__ == "__main__":
