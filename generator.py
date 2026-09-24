@@ -135,22 +135,23 @@ class Generator:
         print(under_line)
 
 
-    def open_border(self, cell: "Cell") -> None:
-        if cell.x == 0:
-            cell.walls["W"] = False
-        elif cell.x == self.width - 1:
-            cell.walls["E"] = False
-        elif cell.y == 0:
-            cell.walls["N"] = False
-        elif cell.y == self.height - 1:
-            cell.walls["S"] = False
+# def bfs()
+
+#     def open_border(self, cell: "Cell") -> None:
+#         if cell.x == 0:
+#             cell.walls["W"] = False
+#         elif cell.x == self.width - 1:
+#             cell.walls["E"] = False
+#         elif cell.y == 0:
+#             cell.walls["N"] = False
+#         elif cell.y == self.height - 1:
+#             cell.walls["S"] = False
+
+def main() -> None:
+    generator = Generator()
+    generator.generate_maze()
+    generator.show_maze()
 
 
 if __name__ == "__main__":
-    gen = Generator()
-    gen.generate_maze()
-
-    for y in range(gen.height):
-        for x in range(gen.width):
-            cell = gen.grid[y][x]
-            print(f"({x},{y}) -> {cell.walls}")
+    main()
