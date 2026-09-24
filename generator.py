@@ -6,6 +6,8 @@ import sys
 from typing import Any
 
 from config_parser import ConfigError, read_config
+from maze_validator import validate_maze
+from pattern42 import forty_two_cells
 
 >>>>>>> refs/remotes/origin/main
 
@@ -43,6 +45,8 @@ class Generator:
         self.seed: int = config["seed"]
         self.perfect: bool = config["perfect"]
         self.output_file: str = config["output_file"]
+        self.pattern_cells: set[tuple[int, int]] = set()
+        self.pattern_warning: str | None = None
 
     def generate_maze(self) -> None:
         random.seed(self.seed)
@@ -54,7 +58,24 @@ class Generator:
                 cell = Cell(x, y)
                 line.append(cell)
             self.grid.append(line)
-        self.listcel = [self.grid[0][0]]
+        pattern = forty_two_cells(
+            self.width, self.height, forbidden=(self.entry, self.exit)
+        )
+        if pattern is None:
+            self.pattern_cells = set()
+            self.pattern_warning = (
+                "the maze is too small (or entry/exit is in the way) "
+                "to draw the '42' pattern"
+            )
+        else:
+            self.pattern_cells = pattern
+            self.pattern_warning = None
+        for (px, py) in self.pattern_cells:
+            self.grid[py][px].visited = True
+
+        start = self.grid[self.entry[1]][self.entry[0]]
+        start.visited = True
+        self.listcel = [start]
         while (self.listcel):
             neighbours = self.get_neighbours(self.listcel[-1])
             if not neighbours:
@@ -64,8 +85,6 @@ class Generator:
                 self.listcel[-1].open_path(next)
                 next.visited = True
                 self.listcel.append(next)
-        self.open_border(self.grid[self.entry[1]][self.entry[0]])
-        self.open_border(self.grid[self.exit[1]][self.exit[0]])
 
     def get_neighbours(self, current: Cell) -> list[Cell]:
         neighbourslist = []
@@ -99,6 +118,8 @@ class Generator:
                     mid_line += " E "
                 elif (x, y) == self.exit:
                     mid_line += " X "
+                elif (x, y) in self.pattern_cells:
+                    mid_line += " # "
                 else:
                     mid_line += "   "
             top_line += "+"
@@ -120,74 +141,15 @@ class Generator:
         under_line += "+"
         print(under_line)
 
-    def open_border(self, cell: "Cell") -> None:
-        if cell.x == 0:
-            cell.walls["W"] = False
-        elif cell.x == self.width - 1:
-            cell.walls["E"] = False
-        elif cell.y == 0:
-            cell.walls["N"] = False
-        elif cell.y == self.height - 1:
-            cell.walls["S"] = False
+    def validate(self) -> list[str]:
+        """Check the generated maze against the subject rules.
 
-<<<<<<< HEAD
-    def get_valid_neighbours(self, current : Cell) -> list[Cell]:
-            neighbourslist = []
-            deslocations = [(0,-1,"N"), (0,1,"S"), (-1,0,"E"), (1,0,"W")]
-
-            for dx, dy, directions in deslocations:
-                nx = current.x + dx
-                ny = current.y + dy
-                if 0 <= nx < self.width and 0 <= ny < self.height:
-                    if directions.walls:
-                    
-                    neighbour = self.grid[ny][nx]
-                        neighbourslist.append(neighbour)
-
-            return neighbourslist
-
-
-    def bfs () ->:
-        current : Cell = self.entry
-        queue : list[Cell] = {}
-        visited : set
-        while current != self.exit:
-            
-            current.visited = True
-
-
-
-def read_config (config : str) -> configs : dict[str,int] :
-     configs : dict[str,int] = []
-     with open(config".txt","r") as file:
-            for line in file:
-                if line.startswith("WIDTH="):
-                    self.width = int(line.split("=")[1])
-                    configs["width"] = int(line.split("=")[1]) ## exemplo muito provavelmente vai ficar assim
-                if line.startswith("HEIGHT="):
-                    self.height = int(line.split("=")[1])
-                if line.startswith("ENTRY="):
-                    coords = line.split("=")[1].split(",")
-                    entry_x = int(coords[0])
-                    entry_y = int(coords[1])
-                    self.entry = (entry_x, entry_y)
-                if line.startswith("EXIT="):
-                    coords = line.split("=")[1].split(",")
-                    exit_x = int(coords[0])
-                    exit_y = int(coords[1])
-                    self.exit = (exit_x, exit_y)
-                if line.startswith("SEED="):
-                    self.seed = int(line.split("=")[1])
-        if self.width <= 0 or self.height <= 0 or self.entry is None or self.exit is None:
-            raise ValueError("Tamanho inválido")
-        if configs["entry"] == configs["exit"]:
-            raise ValueError("Entry and exit cant be in the same place!")
-        if self.seed is None:
-            self.seed = random.randint(0 ,2**32 - 1)
-
-=======
-    # MUDANÇA 2: o read_config foi REMOVIDO daqui (agora está no
-    # config_parser.py)
+        Returns:
+            A list of error messages. Empty means the maze is valid.
+        """
+        return validate_maze(
+            self.grid, self.entry, self.exit, self.perfect
+        )
 
 >>>>>>> refs/remotes/origin/main
 
@@ -203,6 +165,14 @@ def main() -> None:
         sys.exit(1)
     generator = Generator(config)
     generator.generate_maze()
+    if generator.pattern_warning:
+        print(f"Warning: {generator.pattern_warning}", file=sys.stderr)
+    errors = generator.validate()
+    if errors:
+        print("Warning: the maze breaks the subject rules:",
+              file=sys.stderr)
+        for message in errors:
+            print(f"  - {message}", file=sys.stderr)
     generator.show_maze()
 
 
