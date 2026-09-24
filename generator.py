@@ -1,7 +1,5 @@
 import random
-<<<<<<< HEAD
 from collections import deque
-=======
 import sys
 from typing import Any
 
@@ -9,7 +7,6 @@ from config_parser import ConfigError, read_config
 from maze_validator import validate_maze
 from pattern42 import forty_two_cells
 
->>>>>>> refs/remotes/origin/main
 
 class Cell:
 
