@@ -1,5 +1,5 @@
 import random
-
+from collections import deque
 
 class Cell:
 
@@ -146,6 +146,31 @@ class Generator:
         elif cell.y == self.height - 1:
             cell.walls["S"] = False
 
+    def get_valid_neighbours(self, current : Cell) -> list[Cell]:
+            neighbourslist = []
+            deslocations = [(0,-1,"N"), (0,1,"S"), (-1,0,"E"), (1,0,"W")]
+
+            for dx, dy, directions in deslocations:
+                nx = current.x + dx
+                ny = current.y + dy
+                if 0 <= nx < self.width and 0 <= ny < self.height:
+                    if directions.walls:
+                    
+                    neighbour = self.grid[ny][nx]
+                        neighbourslist.append(neighbour)
+
+            return neighbourslist
+
+
+    def bfs () ->:
+        current : Cell = self.entry
+        queue : list[Cell] = {}
+        visited : set
+        while current != self.exit:
+            
+            current.visited = True
+
+
 
 def read_config (config : str) -> configs : dict[str,int] :
      configs : dict[str,int] = []
@@ -175,7 +200,6 @@ def read_config (config : str) -> configs : dict[str,int] :
         if self.seed is None:
             self.seed = random.randint(0 ,2**32 - 1)
 
-# def bfs () ->:
 
 def main() -> None:
     generator = Generator()
