@@ -30,28 +30,30 @@ class Generator:
         self.seed = None
         self.width = None
         self.height = None
-        with open("config.txt","r") as file:
-            for line in file:
-                if line.startswith("WIDTH="):
-                    self.width = int(line.split("=")[1])
-                if line.startswith("HEIGHT="):
-                    self.height = int(line.split("=")[1])
-                if line.startswith("ENTRY="):
-                    coords = line.split("=")[1].split(",")
-                    entry_x = int(coords[0])
-                    entry_y = int(coords[1])
-                    self.entry = (entry_x, entry_y)
-                if line.startswith("EXIT="):
-                    coords = line.split("=")[1].split(",")
-                    exit_x = int(coords[0])
-                    exit_y = int(coords[1])
-                    self.exit = (exit_x, exit_y)
-                if line.startswith("SEED="):
-                    self.seed = int(line.split("=")[1])
-        if self.width <= 0 or self.height <= 0 or self.entry is None or self.exit is None:
-            raise ValueError("Tamanho inválido")
-        if self.seed is None:
-            self.seed = random.randint(0 ,2**32 - 1)
+        arguments : dict[str,int] = read_config()
+
+        # with open("config.txt","r") as file:
+        #     for line in file:
+        #         if line.startswith("WIDTH="):
+        #             self.width = int(line.split("=")[1])
+        #         if line.startswith("HEIGHT="):
+        #             self.height = int(line.split("=")[1])
+        #         if line.startswith("ENTRY="):
+        #             coords = line.split("=")[1].split(",")
+        #             entry_x = int(coords[0])
+        #             entry_y = int(coords[1])
+        #             self.entry = (entry_x, entry_y)
+        #         if line.startswith("EXIT="):
+        #             coords = line.split("=")[1].split(",")
+        #             exit_x = int(coords[0])
+        #             exit_y = int(coords[1])
+        #             self.exit = (exit_x, exit_y)
+        #         if line.startswith("SEED="):
+        #             self.seed = int(line.split("=")[1])
+        # if self.width <= 0 or self.height <= 0 or self.entry is None or self.exit is None:
+        #     raise ValueError("Tamanho inválido")
+        # if self.seed is None:
+        #     self.seed = random.randint(0 ,2**32 - 1)
         
 
     def generate_maze(self) ->None:
@@ -133,15 +135,18 @@ class Generator:
         under_line += "+"
         print(under_line)
 
-    def open_border(self, cell: "Cell") -> None:
-        if cell.x == 0:
-            cell.walls["W"] = False
-        elif cell.x == self.width - 1:
-            cell.walls["E"] = False
-        elif cell.y == 0:
-            cell.walls["N"] = False
-        elif cell.y == self.height - 1:
-            cell.walls["S"] = False
+
+# def bfs()
+
+#     def open_border(self, cell: "Cell") -> None:
+#         if cell.x == 0:
+#             cell.walls["W"] = False
+#         elif cell.x == self.width - 1:
+#             cell.walls["E"] = False
+#         elif cell.y == 0:
+#             cell.walls["N"] = False
+#         elif cell.y == self.height - 1:
+#             cell.walls["S"] = False
 
 def main() -> None:
     generator = Generator()
