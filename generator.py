@@ -3,14 +3,13 @@ import random
 
 class Cell:
 
-    def __init__(self, x: int, y:int) -> None:
+    def __init__(self, x: int, y: int) -> None:
         self.x = x
         self.y = y
         self.walls = {"N": True, "E": True, "S": True, "W": True}
         self.visited = False
 
-
-    def open_path(self, next : "Cell") -> None:
+    def open_path(self, next: "Cell") -> None:
         if next.x - self.x > 0 :
             self.walls["E"] = False 
             next.walls["W"] =  False
@@ -134,18 +133,15 @@ class Generator:
         under_line += "+"
         print(under_line)
 
-
-# def bfs()
-
-#     def open_border(self, cell: "Cell") -> None:
-#         if cell.x == 0:
-#             cell.walls["W"] = False
-#         elif cell.x == self.width - 1:
-#             cell.walls["E"] = False
-#         elif cell.y == 0:
-#             cell.walls["N"] = False
-#         elif cell.y == self.height - 1:
-#             cell.walls["S"] = False
+    def open_border(self, cell: "Cell") -> None:
+        if cell.x == 0:
+            cell.walls["W"] = False
+        elif cell.x == self.width - 1:
+            cell.walls["E"] = False
+        elif cell.y == 0:
+            cell.walls["N"] = False
+        elif cell.y == self.height - 1:
+            cell.walls["S"] = False
 
 def main() -> None:
     generator = Generator()
