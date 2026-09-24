@@ -151,7 +151,64 @@ class Generator:
             self.grid, self.entry, self.exit, self.perfect
         )
 
->>>>>>> refs/remotes/origin/main
+
+    def open_border(self, cell: "Cell") -> None:
+        if cell.x == 0:
+            cell.walls["W"] = False
+        elif cell.x == self.width - 1:
+            cell.walls["E"] = False
+        elif cell.y == 0:
+            cell.walls["N"] = False
+        elif cell.y == self.height - 1:
+            cell.walls["S"] = False
+
+    def get_valid_neighbours(self, current : Cell) -> list[Cell]:
+            neighbourslist = []
+            deslocations = [(0,-1,"N"), (0,1,"S"), (-1,0,"W"), (1,0,"E")]
+
+            for dx, dy, direction in deslocations:
+                nx = current.x + dx
+                ny = current.y + dy
+                if 0 <= nx < self.width and 0 <= ny < self.height:
+                    if not current.walls[direction]:
+                        neighbourslist.append(self.grid[ny][nx])                        
+
+            return neighbourslist
+
+
+    def bfs (self) -> list[Cell]:
+        current : Cell = self.grid[self.entry[1]][self.entry[0]]
+        queue : deque[Cell] = deque()
+        visited : set[Cell] = set()
+        camefrom : dict[Cell, Cell] = {}
+        current_start : Cell = current
+        queue.append(current)
+        visited.add(current)
+        camefrom[current] =  None
+        found = False
+        while queue:
+            current = queue.popleft()
+            if(current == self.grid[self.exit[1]][self.exit[0]]):
+                found = True
+                break
+            neighbours = self.get_valid_neighbours(current)
+            for neighbour in neighbours:
+                if neighbour not in visited:
+                    visited.add(neighbour)
+                    camefrom[neighbour] = current
+                    queue.append(neighbour)
+            
+        if not found:
+            return []
+
+        exit_cell = self.grid[self.exit[1]][self.exit[0]]
+        path : list[Cell] = [exit_cell]
+        while path[-1] != current_start:
+            path.append(camefrom[path[-1]])
+        path.reverse()
+        return path
+
+
 
 def main() -> None:
     # MUDANÇA 3: o main lê o config e trata os erros
