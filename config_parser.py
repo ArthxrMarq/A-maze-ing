@@ -1,7 +1,10 @@
 """Configuration file parsing for A-Maze-ing."""
 
+import os
 import random
 from typing import Any
+
+from pattern42 import MIN_HEIGHT, MIN_WIDTH, forty_two_cells
 
 MANDATORY_KEYS = ("WIDTH", "HEIGHT", "ENTRY", "EXIT", "OUTPUT_FILE", "PERFECT")
 OPTIONAL_KEYS = ("SEED",)
@@ -144,33 +147,79 @@ def read_config(path: str) -> dict[str, Any]:
     if missing:
         raise ConfigError(f"Missing mandatory key(s): {', '.join(missing)}")
 
-    width = parse_int("WIDTH", raw["WIDTH"])
-    height = parse_int("HEIGHT", raw["HEIGHT"])
-    if width <= 0 or height <= 0:
-        raise ConfigError("WIDTH and HEIGHT must be positive integers")
-
-    entry = parse_coords("ENTRY", raw["ENTRY"])
-    exit_ = parse_coords("EXIT", raw["EXIT"])
-    for name, (x, y) in (("ENTRY", entry), ("EXIT", exit_)):
-        if not (0 <= x < width and 0 <= y < height):
-            raise ConfigError(
-                f"{name} ({x},{y}) is outside the maze "
-                f"(x: 0-{width - 1}, y: 0-{height - 1})"
-            )
-    if entry == exit_:
-        raise ConfigError("ENTRY and EXIT must be different cells")
-
     if "SEED" in raw:
         seed = parse_int("SEED", raw["SEED"])
     else:
         seed = random.randint(0, 2**32 - 1)
 
-    return {
-        "width": width,
-        "height": height,
-        "entry": entry,
-        "exit": exit_,
+    config = {
+        "width": parse_int("WIDTH", raw["WIDTH"]),
+        "height": parse_int("HEIGHT", raw["HEIGHT"]),
+        "entry": parse_coords("ENTRY", raw["ENTRY"]),
+        "exit": parse_coords("EXIT", raw["EXIT"]),
         "output_file": raw["OUTPUT_FILE"],
         "perfect": parse_bool("PERFECT", raw["PERFECT"]),
         "seed": seed,
     }
+    validate_config(config)
+    output_file = raw["OUTPUT_FILE"]
+    if os.path.realpath(output_file) == os.path.realpath(path):
+        raise ConfigError("OUTPUT_FILE must not overwrite the config file")
+    try:
+        if os.path.exists(output_file) and os.path.samefile(path, output_file):
+            raise ConfigError("OUTPUT_FILE must not overwrite the config file")
+    except OSError as error:
+        raise ConfigError(f"Cannot inspect OUTPUT_FILE: {error}") from None
+    return config
+
+
+def validate_config(config: dict[str, Any]) -> None:
+    """Validate parsed settings for both TXT input and direct API use.
+
+    Raise ConfigError for missing keys, invalid types, excessive size or
+    impossible maze parameters.
+    """
+    for key in ("width", "height", "entry", "exit", "output_file",
+                "perfect", "seed"):
+        if key not in config:
+            raise ConfigError(f"Missing configuration key: {key}")
+    for key in ("width", "height", "seed"):
+        if type(config[key]) is not int:
+            raise ConfigError(f"{key.upper()} must be an integer")
+    width = config["width"]
+    height = config["height"]
+    if width <= 0 or height <= 0:
+        raise ConfigError("WIDTH and HEIGHT must be positive integers")
+    if type(config["perfect"]) is not bool:
+        raise ConfigError("PERFECT must be True or False")
+    for key in ("entry", "exit"):
+        coords = config[key]
+        if not isinstance(coords, tuple) or len(coords) != 2:
+            raise ConfigError(f"{key.upper()} must be an (x, y) tuple")
+        x, y = coords
+        if type(x) is not int or type(y) is not int:
+            raise ConfigError(f"{key.upper()} coordinates must be integers")
+        if not (0 <= x < width and 0 <= y < height):
+            raise ConfigError(f"{key.upper()} ({x},{y}) is outside the maze")
+    if config["entry"] == config["exit"]:
+        raise ConfigError("ENTRY and EXIT must be different cells")
+    output = config["output_file"]
+    if not isinstance(output, str) or not output.strip():
+        raise ConfigError("OUTPUT_FILE must be a non-empty filename")
+    if any(char in output for char in ("\0", "\n", "\r")):
+        raise ConfigError("OUTPUT_FILE contains an invalid character")
+    perfect = config["perfect"]
+    if not perfect and (width - 1) * (height - 1) < 2:
+        raise ConfigError(
+            "PERFECT=False requires room for at least two independent loops "
+            "(minimum 2x3 or 3x2)"
+        )
+    forbidden = [config["entry"], config["exit"]]
+    if not perfect:
+        forbidden.append((width // 2, height // 2))
+    if (width >= MIN_WIDTH and height >= MIN_HEIGHT
+            and forty_two_cells(width, height, forbidden) is None):
+        raise ConfigError(
+            "Cannot place the '42' without blocking entry, exit or centre; "
+            "change the coordinates or enlarge the maze"
+        )

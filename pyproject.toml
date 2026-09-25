@@ -1,0 +1,34 @@
+[build-system]
+requires = ["poetry-core>=2.0,<3.0"]
+build-backend = "poetry.core.masonry.api"
+
+[project]
+name = "mazegen"
+version = "1.0.0"
+description = "Reproducible perfect mazes and playable maze boards"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [{name = "lusampai"}, {name = "armarque"}]
+dependencies = []
+
+[tool.poetry]
+packages = [
+    {include = "mazegen.py"},
+    {include = "generator.py"},
+    {include = "config_parser.py"},
+    {include = "maze_solver.py"},
+    {include = "maze_exporter.py"},
+    {include = "maze_validator.py"},
+    {include = "pattern42.py"},
+]
+include = [
+    {path = "README.md", format = ["sdist", "wheel"]},
+    {path = "LICENSE.md", format = ["sdist", "wheel"]},
+    {path = "Makefile", format = "sdist"},
+    {path = "requirements-dev.txt", format = "sdist"},
+    {path = "config.txt", format = "sdist"},
+]
+
+[tool.mypy]
+exclude = ["^build/", "^dist/", "^\\.venv/"]

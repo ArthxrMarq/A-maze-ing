@@ -1,22 +1,28 @@
+"""Maze generation and ASCII display: the reusable part of the project."""
+
 import random
-from collections import deque
-import sys
 from typing import Any
 
-from config_parser import ConfigError, read_config
-from maze_validator import validate_maze
+from config_parser import validate_config
+from maze_solver import bfs
+from maze_validator import count_graph, is_open_block, validate_maze
 from pattern42 import forty_two_cells
 
 
 class Cell:
+    """A grid cell with four reciprocal walls."""
 
     def __init__(self, x: int, y: int) -> None:
+        """Create a cell with all four walls closed."""
         self.x = x
         self.y = y
         self.walls = {"N": True, "E": True, "S": True, "W": True}
         self.visited = False
 
     def open_path(self, next: "Cell") -> None:
+        """Open reciprocal walls between two adjacent cells."""
+        if abs(next.x - self.x) + abs(next.y - self.y) != 1:
+            raise ValueError("A passage requires orthogonally adjacent cells")
         if next.x - self.x > 0:
             self.walls["E"] = False
             next.walls["W"] = False
@@ -32,9 +38,11 @@ class Cell:
 
 
 class Generator:
+    """Generate reproducible perfect mazes or playable boards."""
 
-    # MUDANÇA 1: o Generator recebe o config já pronto, não lê arquivo
     def __init__(self, config: dict[str, Any]) -> None:
+        """Validate settings and initialize an empty maze."""
+        validate_config(config)
         self.width: int = config["width"]
         self.height: int = config["height"]
         self.entry: tuple[int, int] = config["entry"]
@@ -42,12 +50,44 @@ class Generator:
         self.seed: int = config["seed"]
         self.perfect: bool = config["perfect"]
         self.output_file: str = config["output_file"]
+        self.grid: list[list[Cell]] = []
         self.pattern_cells: set[tuple[int, int]] = set()
         self.pattern_warning: str | None = None
 
     def generate_maze(self) -> None:
-        random.seed(self.seed)
-        self.grid: list[list[Cell]]
+        """Generate and validate a maze, raising ValueError on failure.
+
+        ``__init__`` already called ``validate_config``, which guarantees
+        the requested size, entry/exit and pattern placement are all
+        possible, so this method does not need to re-check them.
+        """
+        rng = random.Random(self.seed)
+        forbidden = [self.entry, self.exit]
+        if not self.perfect:
+            forbidden.append((self.width // 2, self.height // 2))
+        pattern = forty_two_cells(self.width, self.height, forbidden)
+        self.pattern_cells = pattern if pattern is not None else set()
+        self.pattern_warning = (
+            "the maze is too small to draw the '42' pattern"
+            if pattern is None else None
+        )
+        # A different tree can avoid dead ends that cannot safely be braided.
+        # Keep one RNG across attempts to reproduce the whole process.
+        attempts = 1 if self.perfect else 50
+        for _ in range(attempts):
+            self._generate_tree(rng)
+            if not self.perfect:
+                self._braid_maze(rng)
+            errors = self.validate()
+            if not errors:
+                return
+        raise ValueError(
+            f"Could not generate a valid maze after {attempts} attempt(s): "
+            + "; ".join(errors)
+        )
+
+    def _generate_tree(self, rng: random.Random) -> None:
+        """Carve a DFS spanning tree, leaving the pattern cells closed."""
         self.grid = []
         for y in range(self.height):
             line = []
@@ -55,18 +95,6 @@ class Generator:
                 cell = Cell(x, y)
                 line.append(cell)
             self.grid.append(line)
-        pattern = forty_two_cells(
-            self.width, self.height, forbidden=(self.entry, self.exit)
-        )
-        if pattern is None:
-            self.pattern_cells = set()
-            self.pattern_warning = (
-                "the maze is too small (or entry/exit is in the way) "
-                "to draw the '42' pattern"
-            )
-        else:
-            self.pattern_cells = pattern
-            self.pattern_warning = None
         for (px, py) in self.pattern_cells:
             self.grid[py][px].visited = True
 
@@ -78,15 +106,64 @@ class Generator:
             if not neighbours:
                 self.listcel.pop()
             else:
-                next = random.choice(neighbours)
+                next = rng.choice(neighbours)
                 self.listcel[-1].open_path(next)
                 next.visited = True
                 self.listcel.append(next)
 
+    def _try_open(self, cell: Cell, other: Cell, direction: str,
+                  opposite: str) -> bool:
+        """Open an internal wall unless it creates an open 3x3 block."""
+        cell.open_path(other)
+        # Only blocks containing both endpoints can become newly open.
+        for y in range(max(0, max(cell.y, other.y) - 2),
+                       min(cell.y, other.y, self.height - 3) + 1):
+            for x in range(max(0, max(cell.x, other.x) - 2),
+                           min(cell.x, other.x, self.width - 3) + 1):
+                if is_open_block(self.grid, x, y, 3):
+                    cell.walls[direction] = True
+                    other.walls[opposite] = True
+                    return False
+        return True
+
+    def _braid_maze(self, rng: random.Random) -> None:
+        """Remove dead ends and create at least two independent cycles."""
+        candidates: list[tuple[Cell, Cell, str, str]] = []
+        for y, row in enumerate(self.grid):
+            for x, cell in enumerate(row):
+                if (x, y) in self.pattern_cells:
+                    continue
+                for dx, dy, direction, opposite in (
+                    (1, 0, "E", "W"), (0, 1, "S", "N"),
+                ):
+                    nx, ny = x + dx, y + dy
+                    if (nx < self.width and ny < self.height
+                            and (nx, ny) not in self.pattern_cells
+                            and cell.walls[direction]):
+                        candidates.append((cell, self.grid[ny][nx],
+                                           direction, opposite))
+        rng.shuffle(candidates)
+        cells, passages = count_graph(self.grid)
+        loops = passages - cells + 1
+        # First prioritise walls touching dead ends. Opening a wall only
+        # increases degrees, so it never creates new dead ends.
+        for cell, other, direction, opposite in candidates:
+            if (sum(cell.walls.values()) == 3
+                    or sum(other.walls.values()) == 3):
+                if self._try_open(cell, other, direction, opposite):
+                    loops += 1
+        for cell, other, direction, opposite in candidates:
+            if loops >= 2:
+                break
+            if cell.walls[direction]:
+                if self._try_open(cell, other, direction, opposite):
+                    loops += 1
+
     def get_neighbours(self, current: Cell) -> list[Cell]:
+        """Return unvisited neighbours available for maze generation."""
         neighbourslist = []
-        deslocations = [(0, -1), (0, 1), (-1, 0), (1, 0)]
-        for dx, dy in deslocations:
+        offsets = [(0, -1), (0, 1), (-1, 0), (1, 0)]
+        for dx, dy in offsets:
             nx = current.x + dx
             ny = current.y + dy
             if 0 <= nx < self.width and 0 <= ny < self.height:
@@ -96,19 +173,35 @@ class Generator:
 
         return neighbourslist
 
-    def show_maze(self) -> None:
+    def show_maze(self, show_solution: bool = True,
+                  wall_color: str = "") -> None:
+        """Display ASCII walls and optional dots at solution cell centers."""
+        if not self.grid:
+            raise ValueError("Generate a maze before displaying it")
+        path: set[tuple[int, int]] = set()
+        if show_solution:
+            solution = bfs(self.grid, self.entry, self.exit)
+            for cell in solution:
+                path.add((cell.x, cell.y))
+
+        reset = ""
+        if wall_color:
+            reset = "\033[0m"
+        joint = f"{wall_color}+{reset}"
+        horizontal = f"{wall_color}---{reset}"
+        vertical = f"{wall_color}|{reset}"
         for y in range(self.height):
             top_line = ""
             mid_line = ""
             for x in range(self.width):
                 cell = self.grid[y][x]
-                top_line += "+"
+                top_line += joint
                 if cell.walls["N"]:
-                    top_line += "---"
+                    top_line += horizontal
                 else:
                     top_line += "   "
                 if cell.walls["W"]:
-                    mid_line += "|"
+                    mid_line += vertical
                 else:
                     mid_line += " "
                 if (x, y) == self.entry:
@@ -117,11 +210,13 @@ class Generator:
                     mid_line += " X "
                 elif (x, y) in self.pattern_cells:
                     mid_line += " # "
+                elif (x, y) in path:
+                    mid_line += " o "
                 else:
                     mid_line += "   "
-            top_line += "+"
+            top_line += joint
             if self.grid[y][self.width - 1].walls["E"]:
-                mid_line += "|"
+                mid_line += vertical
             else:
                 mid_line += " "
             print(top_line)
@@ -130,12 +225,12 @@ class Generator:
         under_line = ""
         for x in range(self.width):
             cell = self.grid[self.height - 1][x]
-            under_line += "+"
+            under_line += joint
             if cell.walls["S"]:
-                under_line += "---"
+                under_line += horizontal
             else:
                 under_line += "   "
-        under_line += "+"
+        under_line += joint
         print(under_line)
 
     def validate(self) -> list[str]:
@@ -145,90 +240,6 @@ class Generator:
             A list of error messages. Empty means the maze is valid.
         """
         return validate_maze(
-            self.grid, self.entry, self.exit, self.perfect
+            self.grid, self.entry, self.exit, self.perfect,
+            pattern_cells=self.pattern_cells,
         )
-
-
-    def open_border(self, cell: "Cell") -> None:
-        if cell.x == 0:
-            cell.walls["W"] = False
-        elif cell.x == self.width - 1:
-            cell.walls["E"] = False
-        elif cell.y == 0:
-            cell.walls["N"] = False
-        elif cell.y == self.height - 1:
-            cell.walls["S"] = False
-
-    def get_valid_neighbours(self, current : Cell) -> list[Cell]:
-            neighbourslist = []
-            deslocations = [(0,-1,"N"), (0,1,"S"), (-1,0,"W"), (1,0,"E")]
-
-            for dx, dy, direction in deslocations:
-                nx = current.x + dx
-                ny = current.y + dy
-                if 0 <= nx < self.width and 0 <= ny < self.height:
-                    if not current.walls[direction]:
-                        neighbourslist.append(self.grid[ny][nx])                        
-
-            return neighbourslist
-
-
-    def bfs (self) -> list[Cell]:
-        current : Cell = self.grid[self.entry[1]][self.entry[0]]
-        queue : deque[Cell] = deque()
-        visited : set[Cell] = set()
-        camefrom : dict[Cell, Cell] = {}
-        current_start : Cell = current
-        queue.append(current)
-        visited.add(current)
-        camefrom[current] =  None
-        found = False
-        while queue:
-            current = queue.popleft()
-            if(current == self.grid[self.exit[1]][self.exit[0]]):
-                found = True
-                break
-            neighbours = self.get_valid_neighbours(current)
-            for neighbour in neighbours:
-                if neighbour not in visited:
-                    visited.add(neighbour)
-                    camefrom[neighbour] = current
-                    queue.append(neighbour)
-            
-        if not found:
-            return []
-
-        exit_cell = self.grid[self.exit[1]][self.exit[0]]
-        path : list[Cell] = [exit_cell]
-        while path[-1] != current_start:
-            path.append(camefrom[path[-1]])
-        path.reverse()
-        return path
-
-
-
-def main() -> None:
-    # MUDANÇA 3: o main lê o config e trata os erros
-    if len(sys.argv) != 2:
-        print("Usage: python3 a_maze_ing.py config.txt", file=sys.stderr)
-        sys.exit(1)
-    try:
-        config = read_config(sys.argv[1])
-    except ConfigError as error:
-        print(f"Error: {error}", file=sys.stderr)
-        sys.exit(1)
-    generator = Generator(config)
-    generator.generate_maze()
-    if generator.pattern_warning:
-        print(f"Warning: {generator.pattern_warning}", file=sys.stderr)
-    errors = generator.validate()
-    if errors:
-        print("Warning: the maze breaks the subject rules:",
-              file=sys.stderr)
-        for message in errors:
-            print(f"  - {message}", file=sys.stderr)
-    generator.show_maze()
-
-
-if __name__ == "__main__":
-    main()

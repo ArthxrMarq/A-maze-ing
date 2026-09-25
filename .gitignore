@@ -4,18 +4,20 @@ __pycache__/
 *.pyo
 .mypy_cache/
 
-# Ambientes virtuais
+# Virtual environments
 .venv/
 venv/
 env/
 
-# Build de pacote (mazegen)
+# Package build (mazegen)
 build/
 dist/
 *.egg-info/
 
-# Editor / SO
+# Editor / OS
 .vscode/
 .idea/
 .DS_Store
-EOF
+
+# Generated default maze
+maze.txt

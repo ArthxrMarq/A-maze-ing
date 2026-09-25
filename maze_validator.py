@@ -4,9 +4,9 @@ The validator only needs a grid of cells exposing a ``walls`` dict with the
 keys "N", "E", "S", "W" (True means the wall is closed). It does not depend
 on any other part of the project.
 
-A cell with its four walls closed is treated as part of the "42" pattern:
-it is allowed to be isolated and is ignored by the connectivity, open-area
-and graph checks.
+When pattern coordinates are supplied, only those cells may be fully closed.
+For compatibility, callers without pattern coordinates still treat every
+fully closed cell as part of the pattern.
 """
 
 from collections import deque
@@ -359,6 +359,8 @@ def validate_maze(
     exit_: tuple[int, int],
     perfect: bool,
     max_dead_ends: int = 2,
+    *,
+    pattern_cells: set[tuple[int, int]] | None = None,
 ) -> list[str]:
     """Check a generated maze against every rule of the subject.
 
@@ -373,6 +375,8 @@ def validate_maze(
         exit_: Exit coordinates (x, y).
         perfect: Value of the PERFECT flag.
         max_dead_ends: Dead-ends tolerated when ``perfect`` is False.
+        pattern_cells: Actual reserved cells. If supplied, reject closed
+            cells outside the pattern and opened cells inside it.
 
     Returns:
         A list of human-readable errors. Empty means the maze is valid.
@@ -380,6 +384,15 @@ def validate_maze(
     errors = check_shape(grid)
     if errors:
         return errors
+    if pattern_cells is not None:
+        for y, row in enumerate(grid):
+            for x, cell in enumerate(row):
+                if (x, y) in pattern_cells and not is_closed(cell):
+                    errors.append(f"Pattern cell ({x},{y}) must be closed")
+                elif (x, y) not in pattern_cells and is_closed(cell):
+                    errors.append(f"Cell ({x},{y}) is isolated outside '42'")
+        if errors:
+            return errors
     errors = check_entry_exit(grid, entry, exit_)
     if errors:
         return errors

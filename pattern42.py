@@ -1,9 +1,9 @@
 """The mandatory "42" pattern, made of fully closed cells.
 
 The pattern is drawn from two 5x7 dot-matrix digits ("4" and "2") separated
-by a one-cell gap, centred inside the maze. It does not depend on any other
-part of the project: it only computes which (x, y) cells must stay fully
-closed.
+by a one-cell gap, preferably centred inside the maze. It does not depend
+on any other part of the project: it only computes which (x, y) cells must
+stay fully closed.
 """
 
 from collections.abc import Iterable
@@ -69,7 +69,7 @@ def forty_two_cells(
     height: int,
     forbidden: Iterable[tuple[int, int]] = (),
 ) -> set[tuple[int, int]] | None:
-    """Compute the cells of the centred "42" pattern, if it fits.
+    """Place the "42" near the centre, avoiding forbidden cells.
 
     Args:
         width: Maze width, in cells.
@@ -79,8 +79,7 @@ def forty_two_cells(
     Returns:
         The set of (x, y) cells that must be fully closed to draw the
         "42", or None if the maze is too small for the pattern (including
-        its safety margin), or if the pattern would overlap one of the
-        forbidden cells.
+        its safety margin), or if no placement avoids forbidden cells.
     """
     if width < MIN_WIDTH or height < MIN_HEIGHT:
         return None
@@ -88,9 +87,18 @@ def forty_two_cells(
     top_left_x = (width - PATTERN_WIDTH) // 2
     top_left_y = (height - PATTERN_HEIGHT) // 2
 
-    cells = _digit_cells(_FOUR, top_left_x, top_left_y)
-    cells |= _digit_cells(_TWO, top_left_x + _DIGIT_WIDTH + _GAP, top_left_y)
-
-    if cells.intersection(forbidden):
-        return None
-    return cells
+    blocked = set(forbidden)
+    # Prefer the original centred position, then the closest alternatives.
+    positions = sorted(
+        ((x, y)
+         for y in range(_MARGIN, height - PATTERN_HEIGHT)
+         for x in range(_MARGIN, width - PATTERN_WIDTH)),
+        key=lambda pos: (abs(pos[0] - top_left_x)
+                         + abs(pos[1] - top_left_y), pos[1], pos[0]),
+    )
+    for x, y in positions:
+        cells = _digit_cells(_FOUR, x, y)
+        cells |= _digit_cells(_TWO, x + _DIGIT_WIDTH + _GAP, y)
+        if not cells.intersection(blocked):
+            return cells
+    return None
